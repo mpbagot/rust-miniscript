@@ -9,6 +9,7 @@ use core::fmt;
 
 use bitcoin::blockdata::{opcodes, script};
 use bitcoin::hex::DisplayHex as _;
+use bitcoin::script::ScriptExt;
 
 use crate::prelude::*;
 
@@ -215,12 +216,11 @@ pub fn lex(script: &'_ script::Script) -> Result<Vec<Token>, Error> {
                     ret.push(Token::Bytes65(bytes));
                 } else {
                     // check minimality of the number
-                    match script::read_scriptint(bytes.as_bytes()) {
+                    match ins::read_scriptint() {
                         Ok(v) if v >= 0 => {
                             ret.push(Token::Num(v as u32));
                         }
-                        Ok(n) => return Err(Error::NegativeInt { bytes: bytes.to_owned(), n }),
-                        Err(err) => return Err(Error::InvalidInt { bytes: bytes.to_owned(), err }),
+                        // FIXME(tcharding): I might have botched the rebase here.
                     }
                 }
             }

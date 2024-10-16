@@ -17,6 +17,7 @@ pub const MAX_SCRIPT_SIZE: usize = 10_000;
 // https://github.com/bitcoin/bitcoin/blob/283a73d7eaea2907a6f7f800f529a0d6db53d7a6/src/policy/policy.h#L44
 pub const MAX_STANDARD_P2WSH_SCRIPT_SIZE: usize = 3600;
 
+// TODO: Why is this included here instead of pulled from bitcoin::constants?
 /// Maximum script element size allowed by consensus rules
 // https://github.com/bitcoin/bitcoin/blob/42b66a6b814bca130a9ccf0a3f747cf33d628232/src/script/script.h#L23
 pub const MAX_SCRIPT_ELEMENT_SIZE: usize = 520;

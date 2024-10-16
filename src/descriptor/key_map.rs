@@ -83,7 +83,7 @@ impl GetKey for KeyMap {
 
     fn get_key<C: Signing>(
         &self,
-        key_request: KeyRequest,
+        key_request: &KeyRequest,
         secp: &Secp256k1<C>,
     ) -> Result<Option<bitcoin::PrivateKey>, Self::Error> {
         Ok(self
@@ -105,7 +105,7 @@ impl GetKey for DescriptorSecretKey {
 
     fn get_key<C: Signing>(
         &self,
-        key_request: KeyRequest,
+        key_request: &KeyRequest,
         secp: &Secp256k1<C>,
     ) -> Result<Option<PrivateKey>, Self::Error> {
         match (self, key_request) {

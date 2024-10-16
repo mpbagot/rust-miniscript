@@ -33,7 +33,7 @@ pub enum Error {
     /// General Interpreter error.
     CouldNotEvaluate,
     /// ECDSA Signature related error
-    EcdsaSig(bitcoin::ecdsa::Error),
+    EcdsaSig(bitcoin::ecdsa::ParseSignatureError),
     /// We expected a push (including a `OP_1` but no other numeric pushes)
     ExpectedPush,
     /// The preimage to the hash function must be exactly 32 bytes.
@@ -247,8 +247,8 @@ impl From<bitcoin::sighash::InvalidSighashTypeError> for Error {
 }
 
 #[doc(hidden)]
-impl From<bitcoin::ecdsa::Error> for Error {
-    fn from(e: bitcoin::ecdsa::Error) -> Error { Error::EcdsaSig(e) }
+impl From<bitcoin::ecdsa::ParseSignatureError> for Error {
+    fn from(e: bitcoin::ecdsa::ParseSignatureError) -> Error { Error::EcdsaSig(e) }
 }
 
 #[doc(hidden)]

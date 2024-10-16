@@ -7,10 +7,12 @@ use std::error;
 
 use bitcoin::hashes::{hash160, ripemd160, sha256};
 use bitcoin::Weight;
+// TODO: This was previously duplicate defined in limits.
+use bitcoin::constants::MAX_REDEEM_SCRIPT_SIZE;
 
 use super::decode::ParseableKey;
 use crate::miniscript::limits::{
-    MAX_OPS_PER_SCRIPT, MAX_SCRIPTSIG_SIZE, MAX_SCRIPT_ELEMENT_SIZE, MAX_SCRIPT_SIZE,
+    MAX_OPS_PER_SCRIPT, MAX_SCRIPTSIG_SIZE, MAX_SCRIPT_SIZE,
     MAX_STACK_SIZE, MAX_STANDARD_P2WSH_SCRIPT_SIZE, MAX_STANDARD_P2WSH_STACK_ITEMS,
 };
 use crate::miniscript::types;
@@ -47,7 +49,7 @@ pub enum ScriptContextError {
     /// `MAX_SCRIPT_SIZE` or `MAX_BLOCK`(`Tap`) bytes.
     MaxWitnessScriptSizeExceeded { max: usize, got: usize },
     /// The Miniscript (under p2sh context) corresponding Script would be
-    /// larger than `MAX_SCRIPT_ELEMENT_SIZE` bytes.
+    /// larger than `MAX_REDEEM_SCRIPT_SIZE` bytes.
     MaxRedeemScriptSizeExceeded { max: usize, got: usize },
     /// The Miniscript(under bare context) corresponding
     /// Script would be larger than `MAX_SCRIPT_SIZE` bytes.
@@ -420,9 +422,9 @@ impl ScriptContext for Legacy {
         // 2. After fragment and param check, validate the script size finally
         match node_checked {
             Ok(_) => {
-                if ms.ext.pk_cost > MAX_SCRIPT_ELEMENT_SIZE {
+                if ms.ext.pk_cost > MAX_REDEEM_SCRIPT_SIZE {
                     Err(ScriptContextError::MaxRedeemScriptSizeExceeded {
-                        max: MAX_SCRIPT_ELEMENT_SIZE,
+                        max: MAX_REDEEM_SCRIPT_SIZE,
                         got: ms.ext.pk_cost,
                     })
                 } else {

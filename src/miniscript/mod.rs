@@ -16,7 +16,7 @@ use core::{hash, str};
 
 use bitcoin::hashes::hash160;
 use bitcoin::script;
-use bitcoin::taproot::{LeafVersion, TapLeafHash};
+use bitcoin::taproot::{LeafVersion, TapLeafHash, TapLeafHashExt as _};
 
 use self::analyzable::ExtParams;
 pub use self::context::{BareCtx, Legacy, Segwitv0, Tap};
@@ -330,7 +330,7 @@ mod private {
 
 pub use private::Miniscript;
 
-impl<Pk: MiniscriptKey, Ctx: ScriptContext> Miniscript<Pk, Ctx> {
+impl<Pk: MiniscriptKey, Ctx: ScriptContext, T> Miniscript<Pk, Ctx> {
     /// Extracts the `AstElem` representing the root of the miniscript
     pub fn into_inner(self) -> Terminal<Pk, Ctx> { self.node }
 
@@ -338,11 +338,11 @@ impl<Pk: MiniscriptKey, Ctx: ScriptContext> Miniscript<Pk, Ctx> {
     pub fn as_inner(&self) -> &Terminal<Pk, Ctx> { &self.node }
 
     /// Encode as a Bitcoin script
-    pub fn encode(&self) -> script::ScriptBuf
+    pub fn encode(&self) -> script::ScriptBuf<T>
     where
         Pk: ToPublicKey,
     {
-        self.node.encode(script::Builder::new()).into_script()
+        self.node.encode(script::Builder::<T>::new()).into_script()
     }
 
     /// Size, in bytes of the script-pubkey. If this Miniscript is used outside
@@ -521,7 +521,7 @@ impl Miniscript<<Tap as ScriptContext>::Key, Tap> {
     pub fn leaf_hash(&self) -> TapLeafHash { self.leaf_hash_internal() }
 }
 
-impl<Ctx: ScriptContext> Miniscript<Ctx::Key, Ctx> {
+impl<Ctx: ScriptContext, T> Miniscript<Ctx::Key, Ctx> {
     /// Attempt to parse an insane(scripts don't clear sanity checks)
     /// script into a Miniscript representation.
     /// Use this to parse scripts with repeated pubkeys, timelock mixing, malleable
@@ -529,7 +529,7 @@ impl<Ctx: ScriptContext> Miniscript<Ctx::Key, Ctx> {
     /// Some of the analysis guarantees of miniscript are lost when dealing with
     /// insane scripts. In general, in a multi-party setting users should only
     /// accept sane scripts.
-    pub fn decode_insane(script: &script::Script) -> Result<Miniscript<Ctx::Key, Ctx>, Error> {
+    pub fn decode_insane(script: &script::Script<T>) -> Result<Miniscript<Ctx::Key, Ctx>, Error> {
         Miniscript::decode_with_ext(script, &ExtParams::insane())
     }
 
@@ -541,7 +541,7 @@ impl<Ctx: ScriptContext> Miniscript<Ctx::Key, Ctx> {
     ///
     /// Allowed extra features can be specified by the ext [`ExtParams`] argument.
     pub fn decode_with_ext(
-        script: &script::Script,
+        script: &script::Script<T>,
         ext: &ExtParams,
     ) -> Result<Miniscript<Ctx::Key, Ctx>, Error> {
         let tokens = lex(script)?;
@@ -593,7 +593,7 @@ impl<Ctx: ScriptContext> Miniscript<Ctx::Key, Ctx> {
     ///     .expect("Compressed keys are allowed in Segwit context");
     ///
     /// ```
-    pub fn decode(script: &script::Script) -> Result<Miniscript<Ctx::Key, Ctx>, Error> {
+    pub fn decode(script: &script::Script<T>) -> Result<Miniscript<Ctx::Key, Ctx>, Error> {
         let ms = Self::decode_with_ext(script, &ExtParams::sane())?;
         Ok(ms)
     }
@@ -1048,14 +1048,39 @@ impl<Pk: FromStrKey, Ctx: ScriptContext> str::FromStr for Miniscript<Pk, Ctx> {
 
 serde_string_impl_pk!(Miniscript, "a miniscript", Ctx; ScriptContext);
 
-/// Provides a Double SHA256 `Hash` type that displays forwards.
+/// Provides a general purpose Double SHA256 `Hash` type that displays forwards.
 pub mod hash256 {
-    use bitcoin::hashes::{hash_newtype, sha256d};
+    use bitcoin::hashes::{hash_newtype, sha256d, GeneralHash, HashEngine as _};
 
     hash_newtype! {
         /// A hash256 of preimage.
         #[hash_newtype(forward)]
         pub struct Hash(sha256d::Hash);
+    }
+
+    impl Hash {
+        /// Constructs a new engine.
+        pub fn engine() -> sha256d::HashEngine { sha256d::HashEngine::default() }
+
+        /// Produces a hash from the current state of a given engine.
+        pub fn from_engine(e: sha256d::HashEngine) -> Self {
+            let sha256d = sha256d::Hash::from_engine(e);
+            Hash(sha256d)
+        }
+
+        /// Hashes some bytes.
+        pub fn hash(data: &[u8]) -> Self {
+            let mut engine = Self::engine();
+            engine.input(data);
+            Self::from_engine(engine)
+        }
+    }
+
+    impl GeneralHash for Hash {
+        type Engine = sha256d::HashEngine;
+
+        fn engine() -> Self::Engine { Hash::engine() }
+        fn from_engine(e: Self::Engine) -> Self { Self::from_engine(e) }
     }
 }
 
@@ -1065,7 +1090,7 @@ mod tests {
     use core::str;
     use core::str::FromStr;
 
-    use bitcoin::hashes::{hash160, sha256, Hash};
+    use bitcoin::hashes::{hash160, sha256};
     use bitcoin::secp256k1::XOnlyPublicKey;
     use bitcoin::taproot::TapLeafHash;
     use sync::Arc;
@@ -1675,7 +1700,7 @@ mod tests {
             "02c2fd50ceae468857bb7eb32ae9cd4083e6c7e42fbbec179d81134b3e3830586c",
         )
         .unwrap();
-        let hash160 = pk.pubkey_hash().to_raw_hash();
+        let hash160 = pk.pubkey_hash();
         let ms_str = &format!("c:expr_raw_pkh({})", hash160);
         type SegwitMs = Miniscript<bitcoin::PublicKey, Segwitv0>;
 
@@ -1692,7 +1717,7 @@ mod tests {
 
         // Try replacing the raw_pkh with a pkh
         let mut map = BTreeMap::new();
-        map.insert(hash160, pk);
+        map.insert(hash160::Hash::from_byte_array(hash160.to_byte_array()), pk);
         let ms_no_raw = ms.substitute_raw_pkh(&map);
         assert_eq!(ms_no_raw.to_string(), format!("pkh({})", pk),);
     }
@@ -1876,7 +1901,7 @@ mod tests {
 
     #[test]
     fn test_script_parse_dos() {
-        let mut script = bitcoin::script::Builder::new().push_opcode(bitcoin::opcodes::OP_TRUE);
+        let mut script = bitcoin::script::Builder::new().push_opcode(bitcoin::opcodes::all::OP_TRUE);
         for _ in 0..10000 {
             script = script.push_opcode(bitcoin::opcodes::all::OP_0NOTEQUAL);
         }
