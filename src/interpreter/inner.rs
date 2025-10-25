@@ -1,12 +1,13 @@
 // Written in 2019 by Sanket Kanjular and Andrew Poelstra
 // SPDX-License-Identifier: CC0-1.0
 
-use bitcoin::address::script_pubkey::{ScriptBufExt as _, ScriptExt as _};
+use bitcoin::script::{ScriptBufExt as _, ScriptExt as _, ScriptPubKeyExt as _, ScriptPubKeyBufExt as _};
 use bitcoin::hashes::{hash160, sha256};
-use bitcoin::script::ScriptExt as _;
 use bitcoin::taproot::{ControlBlock, TAPROOT_ANNEX_PREFIX};
 use bitcoin::Witness;
+use bitcoin::TapScriptBuf;
 
+use crate::miniscript::decode::ParseableKey;
 use super::{stack, BitcoinKey, Error, Stack};
 use crate::miniscript::context::{NoChecks, ScriptContext, SigType};
 use crate::prelude::*;
@@ -94,10 +95,10 @@ pub(super) enum Inner {
 /// Tr outputs don't have script code and return None.
 #[allow(clippy::collapsible_else_if)]
 pub(super) fn from_txdata<'txin>(
-    spk: &bitcoin::Script,
-    script_sig: &'txin bitcoin::Script,
+    spk: &bitcoin::TapScript,
+    script_sig: &'txin bitcoin::ScriptSig,
     witness: &'txin Witness,
-) -> Result<(Inner, Stack<'txin>, Option<bitcoin::ScriptBuf>), Error> {
+) -> Result<(Inner, Stack<'txin>, Option<bitcoin::TapScriptBuf>), Error> {
     let mut ssig_stack: Stack = script_sig
         .instructions_minimal()
         .map(stack::Element::from_instruction)
@@ -132,7 +133,7 @@ pub(super) fn from_txdata<'txin>(
                 Some(elem) => {
                     let pk = pk_from_stack_elem(&elem, false)?;
                     if *spk
-                        == bitcoin::ScriptBuf::new_p2pkh(pk.to_pubkeyhash(SigType::Ecdsa).into())
+                        == bitcoin::TapScriptBuf::new_p2pkh(pk.to_pubkeyhash(SigType::Ecdsa).into())
                     {
                         Ok((
                             Inner::PublicKey(pk.into(), PubkeyType::Pkh),
@@ -159,7 +160,7 @@ pub(super) fn from_txdata<'txin>(
                         Ok((
                             Inner::PublicKey(pk.into(), PubkeyType::Wpkh),
                             wit_stack,
-                            Some(bitcoin::ScriptBuf::new_p2pkh(hash160.into())), // bip143, why..
+                            Some(bitcoin::TapScriptBuf::new_p2pkh(hash160.into())), // bip143, why..
                         ))
                     } else {
                         Err(Error::IncorrectWPubkeyHash)
@@ -398,7 +399,6 @@ mod tests {
     use core::convert::TryFrom;
     use core::str::FromStr;
 
-    use bitcoin::address::script_pubkey::BuilderExt as _;
     use bitcoin::blockdata::script;
     use bitcoin::script::PushBytes;
     use bitcoin::ScriptBuf;

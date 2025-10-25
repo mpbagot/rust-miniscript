@@ -17,7 +17,7 @@ use core::str::{self, FromStr};
 
 use bitcoin::hashes::{hash160, ripemd160, sha256};
 use bitcoin::{
-    secp256k1, Address, Network, Script, ScriptBuf, TxIn, Weight, Witness, WitnessVersion,
+    secp256k1, Address, Network, Script, ScriptBuf, TxIn, Weight, Witness, WitnessVersion, XOnlyPublicKey, ScriptPubKeyBuf, ScriptSigBuf
 };
 use sync::Arc;
 
@@ -462,7 +462,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Descriptor<Pk> {
     }
 
     /// Computes the scriptpubkey of the descriptor.
-    pub fn script_pubkey(&self) -> ScriptBuf {
+    pub fn script_pubkey(&self) -> ScriptPubKeyBuf {
         match *self {
             Descriptor::Bare(ref bare) => bare.script_pubkey(),
             Descriptor::Pkh(ref pkh) => pkh.script_pubkey(),
@@ -480,14 +480,14 @@ impl<Pk: MiniscriptKey + ToPublicKey> Descriptor<Pk> {
     /// This is used in Segwit transactions to produce an unsigned transaction
     /// whose txid will not change during signing (since only the witness data
     /// will change).
-    pub fn unsigned_script_sig(&self) -> ScriptBuf {
+    pub fn unsigned_script_sig(&self) -> ScriptSigBuf {
         match *self {
-            Descriptor::Bare(_) => ScriptBuf::new(),
-            Descriptor::Pkh(_) => ScriptBuf::new(),
-            Descriptor::Wpkh(_) => ScriptBuf::new(),
-            Descriptor::Wsh(_) => ScriptBuf::new(),
+            Descriptor::Bare(_) => ScriptSigBuf::new(),
+            Descriptor::Pkh(_) => ScriptSigBuf::new(),
+            Descriptor::Wpkh(_) => ScriptSigBuf::new(),
+            Descriptor::Wsh(_) => ScriptSigBuf::new(),
             Descriptor::Sh(ref sh) => sh.unsigned_script_sig(),
-            Descriptor::Tr(_) => ScriptBuf::new(),
+            Descriptor::Tr(_) => ScriptSigBuf::new(),
         }
     }
 
@@ -497,7 +497,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Descriptor<Pk> {
     ///
     /// # Errors
     /// If the descriptor is a taproot descriptor.
-    pub fn explicit_script(&self) -> Result<ScriptBuf, Error> {
+    pub fn explicit_script(&self) -> Result<ScriptPubKeyBuf, Error> {
         match *self {
             Descriptor::Bare(ref bare) => Ok(bare.script_pubkey()),
             Descriptor::Pkh(ref pkh) => Ok(pkh.script_pubkey()),
@@ -529,7 +529,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Descriptor<Pk> {
     /// Returns satisfying non-malleable witness and scriptSig to spend an
     /// output controlled by the given descriptor if it possible to
     /// construct one using the satisfier S.
-    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
@@ -546,7 +546,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Descriptor<Pk> {
     /// Returns a possilbly mallable satisfying non-malleable witness and scriptSig to spend an
     /// output controlled by the given descriptor if it possible to
     /// construct one using the satisfier S.
-    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
@@ -679,7 +679,7 @@ impl Descriptor<DescriptorPublicKey> {
     }
 
     /// Convert all the public keys in the descriptor to [`bitcoin::PublicKey`] by deriving them or
-    /// otherwise converting them. All [`bitcoin::secp256k1::XOnlyPublicKey`]s are converted to by adding a
+    /// otherwise converting them. All [`bitcoin::key::XOnlyPublicKey`]s are converted to by adding a
     /// default(0x02) y-coordinate.
     ///
     /// This is a shorthand for:
@@ -955,7 +955,7 @@ impl Descriptor<DescriptorPublicKey> {
 
 impl Descriptor<DefiniteDescriptorKey> {
     /// Convert all the public keys in the descriptor to [`bitcoin::PublicKey`] by deriving them or
-    /// otherwise converting them. All [`bitcoin::secp256k1::XOnlyPublicKey`]s are converted to by adding a
+    /// otherwise converting them. All [`bitcoin::key::XOnlyPublicKey`]s are converted to by adding a
     /// default(0x02) y-coordinate.
     ///
     /// # Examples
@@ -1109,7 +1109,6 @@ pub(crate) use write_descriptor;
 mod tests {
     use core::convert::TryFrom;
 
-    use bitcoin::address::script_pubkey::{BuilderExt as _, ScriptExt as _};
     use bitcoin::blockdata::opcodes::all::{OP_CLTV, OP_CSV};
     use bitcoin::blockdata::script::Instruction;
     use bitcoin::blockdata::{opcodes, script};
@@ -1405,7 +1404,7 @@ mod tests {
 
         let mut txin = bitcoin::TxIn {
             previous_output: bitcoin::OutPoint::COINBASE_PREVOUT,
-            script_sig: bitcoin::ScriptBuf::new(),
+            script_sig: bitcoin::ScriptSigBuf::new(),
             sequence: Sequence::from_height(100),
             witness: Witness::default(),
         };
@@ -1416,14 +1415,14 @@ mod tests {
             txin,
             bitcoin::TxIn {
                 previous_output: bitcoin::OutPoint::COINBASE_PREVOUT,
-                script_sig: script::Builder::new()
+                script_sig: script::Builder::<ScriptSigTag>::new()
                     .push_slice(<&PushBytes>::try_from(sigser.as_slice()).unwrap())
                     .into_script(),
                 sequence: Sequence::from_height(100),
                 witness: Witness::default(),
             }
         );
-        assert_eq!(bare.unsigned_script_sig(), bitcoin::ScriptBuf::new());
+        assert_eq!(bare.unsigned_script_sig(), bitcoin::ScriptSigBuf::new());
 
         let pkh = Descriptor::new_pkh(pk).unwrap();
         pkh.satisfy(&mut txin, &satisfier).expect("satisfaction");
@@ -1431,7 +1430,7 @@ mod tests {
             txin,
             bitcoin::TxIn {
                 previous_output: bitcoin::OutPoint::COINBASE_PREVOUT,
-                script_sig: script::Builder::new()
+                script_sig: script::Builder::<ScriptSigTag>::new()
                     .push_slice(<&PushBytes>::try_from(sigser.as_slice()).unwrap())
                     .push_key(pk)
                     .into_script(),
@@ -1439,7 +1438,7 @@ mod tests {
                 witness: Witness::default(),
             }
         );
-        assert_eq!(pkh.unsigned_script_sig(), bitcoin::ScriptBuf::new());
+        assert_eq!(pkh.unsigned_script_sig(), bitcoin::ScriptSigBuf::new());
 
         let wpkh = Descriptor::new_wpkh(pk).unwrap();
         wpkh.satisfy(&mut txin, &satisfier).expect("satisfaction");
@@ -1447,16 +1446,16 @@ mod tests {
             txin,
             bitcoin::TxIn {
                 previous_output: bitcoin::OutPoint::COINBASE_PREVOUT,
-                script_sig: bitcoin::ScriptBuf::new(),
+                script_sig: bitcoin::ScriptSigBuf::new(),
                 sequence: Sequence::from_height(100),
                 witness: Witness::from_slice(&[sigser.clone(), pk.to_bytes()]),
             }
         );
-        assert_eq!(wpkh.unsigned_script_sig(), bitcoin::ScriptBuf::new());
+        assert_eq!(wpkh.unsigned_script_sig(), bitcoin::ScriptSigBuf::new());
 
         let shwpkh = Descriptor::new_sh_wpkh(pk).unwrap();
         shwpkh.satisfy(&mut txin, &satisfier).expect("satisfaction");
-        let redeem_script = script::Builder::new()
+        let redeem_script = script::Builder::<RedeemScriptTag>::new()
             .push_opcode(opcodes::all::OP_PUSHBYTES_0)
             .push_slice(
                 hash160::Hash::from_str("d1b2a1faf62e73460af885c687dee3b7189cd8ab")
@@ -1468,7 +1467,7 @@ mod tests {
             txin,
             bitcoin::TxIn {
                 previous_output: bitcoin::OutPoint::COINBASE_PREVOUT,
-                script_sig: script::Builder::new()
+                script_sig: script::Builder::<ScriptSigTag>::new()
                     .push_slice(<&PushBytes>::try_from(redeem_script.as_bytes()).unwrap())
                     .into_script(),
                 sequence: Sequence::from_height(100),
@@ -1477,7 +1476,7 @@ mod tests {
         );
         assert_eq!(
             shwpkh.unsigned_script_sig(),
-            script::Builder::new()
+            script::Builder::<ScriptSigTag>::new()
                 .push_slice(<&PushBytes>::try_from(redeem_script.as_bytes()).unwrap())
                 .into_script()
         );

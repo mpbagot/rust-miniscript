@@ -7,6 +7,7 @@ use bitcoin::blockdata::{opcodes, script};
 use bitcoin::hashes::{hash160, ripemd160, sha256};
 use bitcoin::{absolute, relative, Sequence};
 
+use crate::miniscript::decode::ParseableKey;
 use super::error::PkEvalErrInner;
 use super::{verify_sersig, BitcoinKey, Error, HashLockType, KeySigPair, SatisfiedConstraint};
 use crate::hash256;

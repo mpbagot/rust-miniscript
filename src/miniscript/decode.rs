@@ -36,9 +36,9 @@ impl ParseableKey for bitcoin::PublicKey {
     }
 }
 
-impl ParseableKey for bitcoin::secp256k1::XOnlyPublicKey {
+impl ParseableKey for bitcoin::key::XOnlyPublicKey {
     fn from_slice(sl: &[u8]) -> Result<Self, KeyError> {
-        bitcoin::secp256k1::XOnlyPublicKey::from_slice(sl).map_err(KeyError::XOnly)
+        bitcoin::key::XOnlyPublicKey::from_slice(sl)//.map_err(KeyError::XOnly)
     }
 }
 
@@ -49,7 +49,7 @@ mod private {
 
     // Implement for those same types, but no others.
     impl Sealed for bitcoin::PublicKey {}
-    impl Sealed for bitcoin::secp256k1::XOnlyPublicKey {}
+    impl Sealed for bitcoin::key::XOnlyPublicKey {}
 }
 
 #[derive(Copy, Clone, Debug)]

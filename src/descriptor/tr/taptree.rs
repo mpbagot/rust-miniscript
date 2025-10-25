@@ -3,6 +3,7 @@
 use core::fmt;
 
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TAPROOT_CONTROL_MAX_NODE_COUNT};
+use bitcoin::TapScript;
 
 use crate::miniscript::context::Tap;
 use crate::policy::{Liftable, Semantic};
@@ -216,7 +217,7 @@ impl<Pk: ToPublicKey> TapTreeIterItem<'_, Pk> {
     /// all (or many) of the leaves of the tree, you may instead want to call
     /// [`super::Tr::spend_info`] and use the [`super::TrSpendInfo::leaves`] iterator instead.
     #[inline]
-    pub fn compute_script(&self) -> bitcoin::ScriptBuf { self.node.encode() }
+    pub fn compute_script(&self) -> TapScript { self.node.encode() }
 
     /// Computes the [`TapLeafHash`] of the leaf.
     ///

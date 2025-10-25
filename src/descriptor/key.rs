@@ -9,6 +9,7 @@ use std::error;
 use bitcoin::bip32;
 use bitcoin::hashes::{hash160, ripemd160, sha256, HashEngine};
 use bitcoin::key::XOnlyPublicKey;
+use bitcoin::{PublicKey};
 use bitcoin::secp256k1::{Secp256k1, Signing, Verification};
 use bitcoin::NetworkKind;
 
@@ -232,7 +233,7 @@ impl DescriptorXKey<bip32::Xpriv> {
         let hardened_path = &self.derivation_path[..last_hardened_idx];
         let unhardened_path = &self.derivation_path[last_hardened_idx..];
 
-        let xprv = self.xkey.derive_priv(secp, &hardened_path);
+        let xprv = self.xkey.derive_priv(secp, &hardened_path).map_err(DescriptorKeyParseError::DeriveHardenedKey)?;
         let xpub = bip32::Xpub::from_priv(secp, &xprv);
 
         let origin = match &self.origin {
@@ -420,7 +421,7 @@ pub enum DescriptorKeyParseError {
         err: bitcoin::bip32::ParseError,
     },
     /// Error deriving the hardened private key.
-    DeriveHardenedKey(bip32::ParseError),
+    DeriveHardenedKey(bip32::DerivationError),
     /// Error indicating the key data was malformed
     MalformedKeyData(MalformedKeyDataKind),
     /// Error while parsing the master derivation path.
@@ -439,7 +440,7 @@ pub enum DescriptorKeyParseError {
     /// Error while parsing a WIF private key.
     WifPrivateKey(bitcoin::key::FromWifError),
     /// Error while parsing an X-only public key (Secp256k1 error).
-    XonlyPublicKey(bitcoin::secp256k1::Error),
+    XonlyPublicKey(bitcoin::key::ParseXOnlyPublicKeyError),
 }
 
 impl fmt::Display for DescriptorKeyParseError {

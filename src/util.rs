@@ -2,11 +2,12 @@
 
 use core::convert::TryFrom;
 
-use bitcoin::address::script_pubkey::BuilderExt as _;
 use bitcoin::constants::MAX_REDEEM_SCRIPT_SIZE;
 use bitcoin::hashes::hash160;
 use bitcoin::script::{self, PushBytes, ScriptBuf};
 use bitcoin::key::PubkeyHash;
+use bitcoin::script::ScriptSigTag;
+use bitcoin::{ScriptSigBuf};
 
 use crate::miniscript::context;
 use crate::miniscript::satisfy::Placeholder;
@@ -61,12 +62,13 @@ pub(crate) fn witness_size<T: ItemSize>(wit: &[T]) -> usize {
     wit.iter().map(T::size).sum::<usize>() + varint_len(wit.len())
 }
 
-pub(crate) fn witness_to_scriptsig<T>(witness: &[Vec<u8>]) -> ScriptBuf<T> {
-    let mut b = script::Builder::<T>::new();
+pub(crate) fn witness_to_scriptsig(witness: &[Vec<u8>]) -> ScriptSigBuf {
+    let mut b = script::Builder::<ScriptSigTag>::new();
     for (i, wit) in witness.iter().enumerate() {
         let pb = <&PushBytes>::try_from(wit.as_slice());
-        if let Ok(n) = pb::read_scriptint() {
-            b = b.push_int(n);
+        if let Ok(n) = pb.expect("TODO Handle error").read_scriptint() {
+            // n will always be 32 bits, or else read_scriptint will return an error
+            b = b.push_int(n as i32).expect("TODO: Handle error");
         } else {
             if i != witness.len() - 1 {
                 assert!(wit.len() < 73, "All pushes in miniscript are < 73 bytes");
@@ -95,7 +97,7 @@ pub(crate) trait MsKeyBuilder {
         Ctx: ScriptContext;
 }
 
-impl MsKeyBuilder for script::Builder {
+impl<T> MsKeyBuilder for script::Builder<T> {
     fn push_ms_key<Pk, Ctx>(self, key: &Pk) -> Self
     where
         Pk: ToPublicKey,

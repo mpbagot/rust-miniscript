@@ -9,7 +9,7 @@
 use bitcoin::key::{Parity, TapTweak as _, TweakedPublicKey, UntweakedPublicKey};
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin::taproot::{ControlBlock, LeafVersion, TapLeafHash, TapNodeHash, TaprootMerkleBranch};
-use bitcoin::{Script, ScriptBuf};
+use bitcoin::{Script, ScriptBuf, TapScriptBuf};
 
 use crate::miniscript::context::Tap;
 use crate::prelude::Vec;
@@ -204,7 +204,7 @@ impl<Pk: ToPublicKey> TrSpendInfo<Pk> {
             builder = builder
                 .add_leaf_with_ver(
                     leaf.depth(),
-                    ScriptBuf::from(leaf.script()),
+                    TapScriptBuf::from(leaf.script()),
                     leaf.leaf_version(),
                 )
                 .expect("iterating through tree in correct DFS order")

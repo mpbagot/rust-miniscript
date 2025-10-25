@@ -133,6 +133,7 @@ use core::{fmt, hash, str};
 use bitcoin::hashes::{hash160, ripemd160, sha256};
 use bitcoin::hex::DisplayHex;
 use bitcoin::{script, Opcode};
+use bitcoin::script::RedeemScriptSizeError;
 
 pub use crate::blanket_traits::FromStrKey;
 pub use crate::descriptor::{DefiniteDescriptorKey, Descriptor, DescriptorPublicKey};
@@ -197,7 +198,7 @@ impl MiniscriptKey for bitcoin::PublicKey {
     type Hash160 = hash160::Hash;
 }
 
-impl MiniscriptKey for bitcoin::secp256k1::XOnlyPublicKey {
+impl MiniscriptKey for bitcoin::key::XOnlyPublicKey {
     type Sha256 = sha256::Hash;
     type Hash256 = hash256::Hash;
     type Ripemd160 = ripemd160::Hash;
@@ -219,9 +220,9 @@ pub trait ToPublicKey: MiniscriptKey {
     fn to_public_key(&self) -> bitcoin::PublicKey;
 
     /// Convert an object to x-only pubkey
-    fn to_x_only_pubkey(&self) -> bitcoin::secp256k1::XOnlyPublicKey {
+    fn to_x_only_pubkey(&self) -> bitcoin::key::XOnlyPublicKey {
         let pk = self.to_public_key();
-        bitcoin::secp256k1::XOnlyPublicKey::from(pk.inner)
+        bitcoin::key::XOnlyPublicKey::from(pk.inner)
     }
 
     /// Obtain the public key hash for this MiniscriptKey
@@ -272,7 +273,7 @@ impl ToPublicKey for bitcoin::secp256k1::PublicKey {
     fn to_hash160(hash: &hash160::Hash) -> hash160::Hash { *hash }
 }
 
-impl ToPublicKey for bitcoin::secp256k1::XOnlyPublicKey {
+impl ToPublicKey for bitcoin::key::XOnlyPublicKey {
     fn to_public_key(&self) -> bitcoin::PublicKey {
         // This code should never be used.
         // But is implemented for completeness
@@ -282,7 +283,7 @@ impl ToPublicKey for bitcoin::secp256k1::XOnlyPublicKey {
             .expect("Failed to construct 33 Publickey from 0x02 appended x-only key")
     }
 
-    fn to_x_only_pubkey(&self) -> bitcoin::secp256k1::XOnlyPublicKey { *self }
+    fn to_x_only_pubkey(&self) -> bitcoin::key::XOnlyPublicKey { *self }
 
     fn to_sha256(hash: &sha256::Hash) -> sha256::Hash { *hash }
 
@@ -514,10 +515,11 @@ impl fmt::Display for Error {
         match *self {
             Error::ScriptLexer(ref e) => e.fmt(f),
             Error::AddrError(ref e) => fmt::Display::fmt(e, f),
-            Error::RedeemScriptSizeError(ref e) => fmt::Display::fmt(e, f),
-            Error::CmsTooManyKeys(n) => write!(f, "checkmultisig with {} keys", n),
-            Error::Unprintable(x) => write!(f, "unprintable character 0x{:02x}", x),
-            Error::ExpectedChar(c) => write!(f, "expected {}", c),
+            // Error::RedeemScriptSizeError(ref e) => fmt::Display::fmt(e, f),
+            // Error::CmsTooManyKeys(n) => write!(f, "checkmultisig with {} keys", n),
+            // Error::Unprintable(x) => write!(f, "unprintable character 0x{:02x}", x),
+            // Error::ExpectedChar(c) => write!(f, "expected {}", c),
+            Error::AddrP2shError(ref e) => fmt::Display::fmt(e, f),
             Error::UnexpectedStart => f.write_str("unexpected start of script"),
             Error::Unexpected(ref s) => write!(f, "unexpected «{}»", s),
             Error::UnknownWrapper(ch) => write!(f, "unknown wrapper «{}:»", ch),
@@ -583,7 +585,8 @@ impl std::error::Error for Error {
             | MultipathDescLenMismatch => None,
             ScriptLexer(e) => Some(e),
             AddrError(e) => Some(e),
-            RedeemScriptSizeError(e) => Some(e),
+            AddrP2shError(e) => Some(e),
+            // RedeemScriptSizeError(e) => Some(e),
             Secp(e) => Some(e),
             #[cfg(feature = "compiler")]
             CompilerError(e) => Some(e),
@@ -723,7 +726,7 @@ mod tests {
 
     #[test]
     fn regression_xonly_key_hash() {
-        use bitcoin::secp256k1::XOnlyPublicKey;
+        use bitcoin::key::XOnlyPublicKey;
 
         let pk = XOnlyPublicKey::from_str(
             "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115",

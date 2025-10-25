@@ -8,8 +8,8 @@
 use core::convert::TryFrom;
 use core::fmt;
 
-use bitcoin::address::script_pubkey::ScriptExt;
-use bitcoin::{Address, Network, ScriptBuf, Weight};
+use bitcoin::script::{ScriptExt, WitnessScriptExt};
+use bitcoin::{Address, Network, ScriptBuf, Weight, WitnessScriptBuf, ScriptPubKeyBuf, ScriptSigBuf};
 
 use super::SortedMultiVec;
 use crate::descriptor::{write_descriptor, DefiniteDescriptorKey};
@@ -145,7 +145,7 @@ impl<Pk: MiniscriptKey> Wsh<Pk> {
 
 impl<Pk: MiniscriptKey + ToPublicKey> Wsh<Pk> {
     /// Obtains the corresponding script pubkey for this descriptor.
-    pub fn script_pubkey(&self) -> ScriptBuf {
+    pub fn script_pubkey(&self) -> ScriptPubKeyBuf {
         self.inner_script().to_p2wsh().expect("TODO: Handle error")
     }
 
@@ -162,7 +162,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wsh<Pk> {
     }
 
     /// Obtains the underlying miniscript for this descriptor.
-    pub fn inner_script(&self) -> ScriptBuf {
+    pub fn inner_script(&self) -> WitnessScriptBuf {
         match self.inner {
             WshInner::SortedMulti(ref smv) => smv.encode(),
             WshInner::Ms(ref ms) => ms.encode(),
@@ -170,12 +170,12 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wsh<Pk> {
     }
 
     /// Obtains the pre bip-340 signature script code for this descriptor.
-    pub fn ecdsa_sighash_script_code(&self) -> ScriptBuf { self.inner_script() }
+    pub fn ecdsa_sighash_script_code<T>(&self) -> ScriptBuf<T> { self.inner_script() }
 
     /// Returns satisfying non-malleable witness and scriptSig with minimum
     /// weight to spend an output controlled by the given descriptor if it is
     /// possible to construct one using the `satisfier`.
-    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
@@ -185,14 +185,14 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wsh<Pk> {
         };
         let witness_script = self.inner_script();
         witness.push(witness_script.into_bytes());
-        let script_sig = ScriptBuf::new();
+        let script_sig = ScriptSigBuf::new();
         Ok((witness, script_sig))
     }
 
     /// Returns satisfying, possibly malleable, witness and scriptSig with
     /// minimum weight to spend an output controlled by the given descriptor if
     /// it is possible to construct one using the `satisfier`.
-    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
@@ -201,7 +201,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wsh<Pk> {
             WshInner::Ms(ref ms) => ms.satisfy_malleable(satisfier)?,
         };
         witness.push(self.inner_script().into_bytes());
-        let script_sig = ScriptBuf::new();
+        let script_sig = ScriptSigBuf::new();
         Ok((witness, script_sig))
     }
 }
@@ -381,7 +381,7 @@ impl<Pk: MiniscriptKey> Wpkh<Pk> {
 
 impl<Pk: MiniscriptKey + ToPublicKey> Wpkh<Pk> {
     /// Obtains the corresponding script pubkey for this descriptor.
-    pub fn script_pubkey(&self) -> ScriptBuf {
+    pub fn script_pubkey(&self) -> ScriptPubKeyBuf {
         let pk = self.pk.to_public_key();
         let compressed = bitcoin::key::CompressedPublicKey::try_from(pk)
             .expect("wpkh descriptors have compressed keys");
@@ -400,10 +400,10 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wpkh<Pk> {
     }
 
     /// Obtains the underlying miniscript for this descriptor.
-    pub fn inner_script(&self) -> ScriptBuf { self.script_pubkey() }
+    pub fn inner_script(&self) -> ScriptPubKeyBuf { self.script_pubkey() }
 
     /// Obtains the pre bip-340 signature script code for this descriptor.
-    pub fn ecdsa_sighash_script_code(&self) -> ScriptBuf {
+    pub fn ecdsa_sighash_script_code(&self) -> ScriptPubKeyBuf {
         // For SegWit outputs, it is defined by bip-0143 (quoted below) and is different from
         // the previous txo's scriptPubKey.
         // The item 5:
@@ -415,13 +415,13 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wpkh<Pk> {
     /// Returns satisfying non-malleable witness and scriptSig with minimum
     /// weight to spend an output controlled by the given descriptor if it is
     /// possible to construct one using the `satisfier`.
-    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
         if let Some(sig) = satisfier.lookup_ecdsa_sig(&self.pk) {
             let sig_vec = sig.to_vec();
-            let script_sig = ScriptBuf::new();
+            let script_sig = ScriptSigBuf::new();
             let witness = vec![sig_vec, self.pk.to_public_key().to_bytes()];
             Ok((witness, script_sig))
         } else {
@@ -432,7 +432,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Wpkh<Pk> {
     /// Returns satisfying, possibly malleable, witness and scriptSig with
     /// minimum weight to spend an output controlled by the given descriptor if
     /// it is possible to construct one using the `satisfier`.
-    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {

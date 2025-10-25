@@ -9,9 +9,8 @@
 
 use core::fmt;
 
-use bitcoin::address::script_pubkey::BuilderExt as _;
-use bitcoin::script::{self, PushBytes};
-use bitcoin::{Address, Network, ScriptBuf, Weight};
+use bitcoin::script::{self, PushBytes, ScriptSigTag};
+use bitcoin::{Address, Network, ScriptBuf, Weight, ScriptPubKeyBuf, ScriptSigBuf};
 
 use crate::descriptor::{write_descriptor, DefiniteDescriptorKey};
 use crate::expression::{self, FromTree};
@@ -104,18 +103,18 @@ impl<Pk: MiniscriptKey> Bare<Pk> {
 
 impl<Pk: MiniscriptKey + ToPublicKey> Bare<Pk> {
     /// Obtains the corresponding script pubkey for this descriptor.
-    pub fn script_pubkey(&self) -> ScriptBuf { self.ms.encode() }
+    pub fn script_pubkey(&self) -> ScriptPubKeyBuf { self.ms.encode() }
 
     /// Obtains the underlying miniscript for this descriptor.
-    pub fn inner_script(&self) -> ScriptBuf { self.script_pubkey() }
+    pub fn inner_script(&self) -> ScriptPubKeyBuf { self.script_pubkey() }
 
     /// Obtains the pre bip-340 signature script code for this descriptor.
-    pub fn ecdsa_sighash_script_code(&self) -> ScriptBuf { self.script_pubkey() }
+    pub fn ecdsa_sighash_script_code(&self) -> ScriptPubKeyBuf { self.script_pubkey() }
 
     /// Returns satisfying non-malleable witness and scriptSig with minimum
     /// weight to spend an output controlled by the given descriptor if it is
     /// possible to construct one using the `satisfier`.
-    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
@@ -128,7 +127,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Bare<Pk> {
     /// Returns satisfying, possibly malleable, witness and scriptSig with
     /// minimum weight to spend an output controlled by the given descriptor if
     /// it is possible to construct one using the `satisfier`.
-    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
@@ -268,7 +267,7 @@ impl<Pk: MiniscriptKey> Pkh<Pk> {
 
 impl<Pk: MiniscriptKey + ToPublicKey> Pkh<Pk> {
     /// Obtains the corresponding script pubkey for this descriptor.
-    pub fn script_pubkey(&self) -> ScriptBuf {
+    pub fn script_pubkey(&self) -> ScriptPubKeyBuf {
         // Fine to hard code the `Network` here because we immediately call
         // `script_pubkey` which does not use the `network` field of `Address`.
         let addr = self.address(Network::Bitcoin);
@@ -281,20 +280,20 @@ impl<Pk: MiniscriptKey + ToPublicKey> Pkh<Pk> {
     }
 
     /// Obtains the underlying miniscript for this descriptor.
-    pub fn inner_script(&self) -> ScriptBuf { self.script_pubkey() }
+    pub fn inner_script(&self) -> ScriptPubKeyBuf { self.script_pubkey() }
 
     /// Obtains the pre bip-340 signature script code for this descriptor.
-    pub fn ecdsa_sighash_script_code(&self) -> ScriptBuf { self.script_pubkey() }
+    pub fn ecdsa_sighash_script_code(&self) -> ScriptPubKeyBuf { self.script_pubkey() }
 
     /// Returns satisfying non-malleable witness and scriptSig with minimum
     /// weight to spend an output controlled by the given descriptor if it is
     /// possible to construct one using the `satisfier`.
-    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {
         if let Some(sig) = satisfier.lookup_ecdsa_sig(&self.pk) {
-            let script_sig = script::Builder::new()
+            let script_sig = script::Builder::<ScriptSigTag>::new()
                 .push_slice::<&PushBytes>(
                     // serialize() does not allocate here
                     sig.serialize().as_ref(),
@@ -311,7 +310,7 @@ impl<Pk: MiniscriptKey + ToPublicKey> Pkh<Pk> {
     /// Returns satisfying, possibly malleable, witness and scriptSig with
     /// minimum weight to spend an output controlled by the given descriptor if
     /// it is possible to construct one using the `satisfier`.
-    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error>
+    pub fn get_satisfaction_mall<S>(&self, satisfier: S) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error>
     where
         S: Satisfier<Pk>,
     {

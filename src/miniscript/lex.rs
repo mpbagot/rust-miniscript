@@ -94,7 +94,7 @@ impl Iterator for TokenIter {
 }
 
 /// Tokenize a script
-pub fn lex(script: &'_ script::Script) -> Result<Vec<Token>, Error> {
+pub fn lex<T>(script: &'_ script::Script<T>) -> Result<Vec<Token>, Error> {
     let mut ret = Vec::with_capacity(script.len());
 
     for ins in script.instructions_minimal() {
@@ -216,11 +216,12 @@ pub fn lex(script: &'_ script::Script) -> Result<Vec<Token>, Error> {
                     ret.push(Token::Bytes65(bytes));
                 } else {
                     // check minimality of the number
-                    match ins::read_scriptint() {
+                    match bytes.read_scriptint() {
                         Ok(v) if v >= 0 => {
                             ret.push(Token::Num(v as u32));
                         }
-                        // FIXME(tcharding): I might have botched the rebase here.
+                        Err(_) => {}
+                        Ok(_) => {}
                     }
                 }
             }

@@ -12,7 +12,6 @@ use core::fmt;
 use core::str::FromStr;
 
 use bitcoin::hashes::{hash160, ripemd160, sha256};
-use bitcoin::taproot::TapLeafHashExt as _;
 use bitcoin::{absolute, relative, secp256k1, sighash, taproot, Sequence, TxOut, Witness};
 
 use crate::miniscript::context::{NoChecks, SigType};
@@ -30,12 +29,12 @@ use self::stack::Stack;
 use crate::MiniscriptKey;
 
 /// An iterable Miniscript-structured representation of the spending of a coin
-pub struct Interpreter<'txin> {
+pub struct Interpreter<'txin, T> {
     inner: inner::Inner,
     stack: Stack<'txin>,
     /// For non-Taproot spends, the scriptCode; for Taproot script-spends, this
     /// is the leaf script; for key-spends it is `None`.
-    script_code: Option<bitcoin::ScriptBuf>,
+    script_code: Option<bitcoin::ScriptBuf<T>>,
     sequence: Sequence,
     lock_time: absolute::LockTime,
 }
@@ -61,7 +60,7 @@ impl KeySigPair {
         }
     }
 
-    /// Obtain a pair of ([`bitcoin::secp256k1::XOnlyPublicKey`], [`bitcoin::taproot::Signature`]) from [`KeySigPair`]
+    /// Obtain a pair of ([`bitcoin::key::XOnlyPublicKey`], [`bitcoin::taproot::Signature`]) from [`KeySigPair`]
     pub fn as_schnorr(
         &self,
     ) -> Option<(bitcoin::key::XOnlyPublicKey, bitcoin::taproot::Signature)> {
@@ -225,7 +224,7 @@ impl<'txin> Interpreter<'txin> {
                     sighash.map(|hash| secp256k1::Message::from_digest(hash.to_byte_array()))
                 } else if self.is_segwit_v0() {
                     let amt = match get_prevout(prevouts, input_idx) {
-                        Some(txout) => txout.borrow().value,
+                        Some(txout) => txout.borrow().amount,
                         None => return false,
                     };
                     // TODO: Don't manually handle the script code.
@@ -276,7 +275,7 @@ impl<'txin> Interpreter<'txin> {
                 let msg =
                     sighash_msg.map(|hash| secp256k1::Message::from_digest(hash.to_byte_array()));
                 let success = msg.map(|msg| {
-                    secp.verify_schnorr(&schnorr_sig.signature, &msg, xpk)
+                    secp.verify_schnorr(&schnorr_sig.signature, msg.as_ref(), xpk.0)
                         .is_ok()
                 });
                 success.unwrap_or(false) // unwrap_or_default checks for errors, while success would have checksig results
@@ -1029,7 +1028,7 @@ fn verify_sersig<'txin>(
 ) -> Result<KeySigPair, Error> {
     match pk {
         BitcoinKey::Fullkey(pk) => {
-            let ecdsa_sig = bitcoin::ecdsa::Signature::from_slice(sigser)?;
+            let ecdsa_sig = bitcoin::ecdsa::Signature::from_slice(sigser).map_err(|err| { Error::InvalidEcdsaSignature(*pk) })?;
             let key_sig_pair = KeySigPair::Ecdsa(*pk, ecdsa_sig);
             if verify_sig(&key_sig_pair) {
                 Ok(key_sig_pair)

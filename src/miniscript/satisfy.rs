@@ -49,14 +49,14 @@ pub trait Satisfier<Pk: MiniscriptKey + ToPublicKey> {
     /// Obtain a reference to the control block for a ver and script
     fn lookup_tap_control_block_map(
         &self,
-    ) -> Option<&BTreeMap<ControlBlock, (bitcoin::ScriptBuf, LeafVersion)>> {
+    ) -> Option<&BTreeMap<ControlBlock, (bitcoin::TapScriptBuf, LeafVersion)>> {
         None
     }
 
     /// Given a raw `Pkh`, lookup corresponding [`bitcoin::PublicKey`]
     fn lookup_raw_pkh_pk(&self, _: &hash160::Hash) -> Option<bitcoin::PublicKey> { None }
 
-    /// Given a raw `Pkh`, lookup corresponding [`bitcoin::secp256k1::XOnlyPublicKey`]
+    /// Given a raw `Pkh`, lookup corresponding [`bitcoin::key::XOnlyPublicKey`]
     fn lookup_raw_pkh_x_only_pk(&self, _: &hash160::Hash) -> Option<XOnlyPublicKey> { None }
 
     /// Given a keyhash, look up the EC signature and the associated key.
@@ -303,7 +303,7 @@ impl<Pk: MiniscriptKey + ToPublicKey, S: Satisfier<Pk>> Satisfier<Pk> for &S {
 
     fn lookup_tap_control_block_map(
         &self,
-    ) -> Option<&BTreeMap<ControlBlock, (bitcoin::ScriptBuf, LeafVersion)>> {
+    ) -> Option<&BTreeMap<ControlBlock, (bitcoin::TapScriptBuf, LeafVersion)>> {
         (**self).lookup_tap_control_block_map()
     }
 
@@ -363,7 +363,7 @@ impl<Pk: MiniscriptKey + ToPublicKey, S: Satisfier<Pk>> Satisfier<Pk> for &mut S
 
     fn lookup_tap_control_block_map(
         &self,
-    ) -> Option<&BTreeMap<ControlBlock, (bitcoin::ScriptBuf, LeafVersion)>> {
+    ) -> Option<&BTreeMap<ControlBlock, (bitcoin::TapScriptBuf, LeafVersion)>> {
         (**self).lookup_tap_control_block_map()
     }
 
@@ -473,7 +473,7 @@ macro_rules! impl_tuple_satisfier {
 
             fn lookup_tap_control_block_map(
                 &self,
-            ) -> Option<&BTreeMap<ControlBlock, (bitcoin::ScriptBuf, LeafVersion)>> {
+            ) -> Option<&BTreeMap<ControlBlock, (bitcoin::TapScriptBuf, LeafVersion)>> {
                 let &($(ref $ty,)*) = self;
                 $(
                     if let Some(result) = $ty.lookup_tap_control_block_map() {

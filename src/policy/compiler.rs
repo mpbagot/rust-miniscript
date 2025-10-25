@@ -1227,7 +1227,6 @@ where
 mod tests {
     use core::str::FromStr;
 
-    use bitcoin::address::script_pubkey::BuilderExt as _;
     use bitcoin::blockdata::{opcodes, script};
     use bitcoin::hashes;
 

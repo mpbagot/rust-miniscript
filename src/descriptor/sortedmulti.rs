@@ -9,6 +9,7 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use bitcoin::script;
+use bitcoin::script::ScriptPubKeyTag;
 
 use crate::blanket_traits::FromStrKey;
 use crate::miniscript::context::ScriptContext;
@@ -136,12 +137,12 @@ impl<Pk: MiniscriptKey, Ctx: ScriptContext> SortedMultiVec<Pk, Ctx> {
     }
 
     /// Encode as a Bitcoin script
-    pub fn encode(&self) -> script::ScriptBuf
+    pub fn encode<T>(&self) -> script::ScriptBuf<T>
     where
         Pk: ToPublicKey,
     {
         self.sorted_node()
-            .encode(script::Builder::new())
+            .encode(script::Builder::<T>::new())
             .into_script()
     }
 

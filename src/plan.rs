@@ -18,12 +18,12 @@
 
 use core::iter::FromIterator;
 
-use bitcoin::address::script_pubkey::ScriptExt as _;
+use bitcoin::script::{WitnessScriptExt as _, ScriptExt as _};
 use bitcoin::hashes::{hash160, ripemd160, sha256};
 use bitcoin::key::XOnlyPublicKey;
 use bitcoin::script::PushBytesBuf;
 use bitcoin::taproot::{ControlBlock, LeafVersion, TapLeafHash};
-use bitcoin::{absolute, bip32, psbt, relative, ScriptBuf, WitnessVersion};
+use bitcoin::{absolute, bip32, psbt, relative, ScriptBuf, WitnessVersion, TapScriptBuf, ScriptSigBuf};
 
 use crate::descriptor::{self, Descriptor, DescriptorType, KeyMap};
 use crate::miniscript::hash256;
@@ -57,7 +57,7 @@ pub trait AssetProvider<Pk: MiniscriptKey> {
     /// Given a raw `Pkh`, lookup corresponding [`bitcoin::PublicKey`]
     fn provider_lookup_raw_pkh_pk(&self, _: &hash160::Hash) -> Option<bitcoin::PublicKey> { None }
 
-    /// Given a raw `Pkh`, lookup corresponding [`bitcoin::secp256k1::XOnlyPublicKey`]
+    /// Given a raw `Pkh`, lookup corresponding [`bitcoin::key::XOnlyPublicKey`]
     fn provider_lookup_raw_pkh_x_only_pk(&self, _: &hash160::Hash) -> Option<XOnlyPublicKey> {
         None
     }
@@ -268,7 +268,7 @@ impl Plan {
     pub fn satisfy<Sat: Satisfier<DefiniteDescriptorKey>>(
         &self,
         stfr: &Sat,
-    ) -> Result<(Vec<Vec<u8>>, ScriptBuf), Error> {
+    ) -> Result<(Vec<Vec<u8>>, ScriptSigBuf), Error> {
         use bitcoin::blockdata::script::Builder;
 
         let stack = self
@@ -296,7 +296,7 @@ impl Plan {
             DescriptorType::Wpkh
             | DescriptorType::Wsh
             | DescriptorType::WshSortedMulti
-            | DescriptorType::Tr => (stack, ScriptBuf::new()),
+            | DescriptorType::Tr => (stack, ScriptSigBuf::new()),
             DescriptorType::ShWsh | DescriptorType::ShWshSortedMulti | DescriptorType::ShWpkh => {
                 (stack, self.descriptor.unsigned_script_sig())
             }
@@ -317,7 +317,7 @@ impl Plan {
 
             #[derive(Default)]
             struct TrDescriptorData {
-                tap_script: Option<ScriptBuf>,
+                tap_script: Option<TapScriptBuf>,
                 control_block: Option<ControlBlock>,
                 spend_type: Option<SpendType>,
                 key_origins: BTreeMap<XOnlyPublicKey, bip32::KeySource>,
